@@ -1,0 +1,24 @@
+/**
+ * Part of the ALU.
+ * Zeros and negates inputs as specified.
+ */
+
+// Implementation: the ZNX logic zeros or negates
+// the input x, as follows:
+// if (zx == 1) set x = 0   // 16-bit constant
+// if (nx == 1) set x = !x  // bitwise negation
+
+CHIP ZNX {
+    IN
+        x[16], // 16-bit input
+        zx, // zero the input?
+        nx; // negate the input?
+
+    OUT
+        out[16]; // 16-bit output
+
+    PARTS:
+        Mux16(a=x, b=false, sel=zx, out=x1);
+        Not16(in=x1, out=x2);
+        Mux16(a=x1, b=x2, sel=nx, out=out);
+}

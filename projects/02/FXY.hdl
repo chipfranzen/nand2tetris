@@ -1,0 +1,17 @@
+// Returns x+y if f else x&y, then negates the output if no
+
+CHIP FXY {
+    IN
+        x[16], y[16], //16-bit input
+        f, no; //control bits
+
+    OUT
+        out[16]; //16-bit output
+
+    PARTS:
+    And16(a=x, b=y, out=and);
+    Add16(a=x, b=y, out=add);
+    Mux16(a=and, b=add, sel=f, out=f1);
+    Not16(in=f1, out=notf1);
+    Mux16(a=f1, b=notf1, sel=no, out=out);
+}
