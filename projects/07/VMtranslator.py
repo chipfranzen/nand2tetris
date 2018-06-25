@@ -21,6 +21,7 @@ base_seg_dict = {
 class CodeWriter(object):
     def __init__(self, outfile):
         self.outfile = open(outfile, mode='w')
+        self.user_labels = []
 
     def close(self):
         self.outfile.close()
@@ -80,11 +81,49 @@ class CodeWriter(object):
         lines.append('M=M+1') # move stack pointer to empty cell
         self.outfile.write('\n'.join(lines) + '\n')
 
+    def write_init(self):
+        lines = []
+        # initialize the stack pointer
+        lines.append('@256')
+        lines.append('D=A')
+        lines.append('@SP')
+        lines.append('M=D')
+        self.outfile.write('\n'.join(lines) + '\n')
+        # TODO: call sys.init
+
+    def write_goto(self, cmd):
+        lines = []
+        words = cmd.split(' ')
+        label = words[1]
+        lines.append(f'@{label}')
+        lines.append('0;JMP')
+        self.outfile.write('\n'.join(lines) + '\n')
+
+    def write_if_goto(self, cmd):
+        lines = []
+        words = cmd.split(' ')
+        label = words[1]
+        lines.append('@SP')
+        lines.append('AM=M-1')
+        lines.append('D=M')
+        lines.append(f'@{label}')
+        lines.append('D;JNE')
+        self.outfile.write('\n'.join(lines) + '\n')
+
+    def write_label(self, cmd, cmd_ix):
+        lines = []
+        words = cmd.split(' ')
+        label = words[1]
+        assert label not in self.user_labels, f'Label {label} has already been used.'
+        self.user_labels.append(label)
+        assert not label[0].isnumeric()
+        lines.append(f'({label})')
+        self.outfile.write('\n'.join(lines) + '\n')
+
     def write_push_pop(self, cmd):
         lines = []
-        print(cmd)
         words = cmd.split(' ')
-        assert len(words) == 3, 'push/pop commands must have exactly 3 words.'
+        assert len(words) == 3, f'`{cmd}` failed: push/pop commands must have exactly 3 words.'
         command_type, mem_segment, address = words
         if command_type == 'push':
             if mem_segment == 'constant':
@@ -188,10 +227,10 @@ class Parser(object):
     def _process_commands(self):
         commands = []
         for line in self.lines:
-            line = line.strip()
             if '//' in line:
                 index = line.find('//')
                 line = line[:index]
+            line = line.strip()
             if not (line.startswith('//') or line == ''):
                 commands.append(line)
         self.commands = commands
@@ -221,11 +260,17 @@ def main(infiles):
         while parser.has_more_commands():
             parser.advance()
             print(parser.current_command)
+            command_ix = f'{i}_{parser.command_counter}'
             if parser.command_type() in ['C_PUSH', 'C_POP']:
                 code_writer.write_push_pop(parser.current_command)
-            elif parser.command_type() is 'C_ARITHMETIC':
-                command_ix = f'{i}_{parser.command_counter}'
+            elif parser.command_type() == 'C_ARITHMETIC':
                 code_writer.write_arithmetic(parser.current_command, command_ix)
+            elif parser.command_type() == 'C_LABEL':
+                code_writer.write_label(parser.current_command, command_ix)
+            elif parser.command_type() == 'C_GOTO':
+                code_writer.write_goto(parser.current_command)
+            elif parser.command_type() == 'C_IF':
+                code_writer.write_if_goto(parser.current_command)
     code_writer.close()
 
 if __name__ == '__main__':
