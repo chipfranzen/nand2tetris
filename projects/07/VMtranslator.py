@@ -134,15 +134,21 @@ class CodeWriter(object):
         lines.append(f'(return_address_{cmd_number}')
         self.outfile.write('\n'.join(lines) + '\n')
 
-    def write_init(self):
+    def write_function(self, cmd):
+        _, f, k = cmd.split(' ')
         lines = []
-        # initialize the stack pointer
-        lines.append('@256')
+        # (f)
+        lines.append(f'({f})')
+        # repeat k times: push 0
+        lines.append('@0')
         lines.append('D=A')
-        lines.append('@SP')
-        lines.append('M=D')
+        for _ in range(int(k)):
+            lines.append('@SP')
+            lines.append('A=M')
+            lines.append('M=D')
+            lines.append('@SP')
+            lines.append('M=M+1')
         self.outfile.write('\n'.join(lines) + '\n')
-        # TODO: call sys.init
 
     def write_goto(self, cmd):
         lines = []
@@ -163,12 +169,15 @@ class CodeWriter(object):
         lines.append('D;JNE')
         self.outfile.write('\n'.join(lines) + '\n')
 
-    def write_init():
+    def write_init(self):
         lines = []
+        # initialize the stack pointer
+        lines.append('@256')
+        lines.append('D=A')
         lines.append('@SP')
-        lines.append('M=256')
-        # TODO: init other segment bases
-        # TODO: call Sys.init
+        lines.append('M=D')
+        self.outfile.write('\n'.join(lines) + '\n')
+        # TODO: call sys.init
 
     def write_label(self, cmd, cmd_ix):
         lines = []
@@ -222,6 +231,52 @@ class CodeWriter(object):
                 for _ in range(int(address)):
                     lines.append('A=A+1')
             lines.append('M=D')
+        self.outfile.write('\n'.join(lines) + '\n')
+
+    def write_return(self):
+
+        def set_reg_to_frame_less_n(n, reg, lines):
+            lines.append('@R14')
+            lines.append('D=M')
+            lines.append(f'@{n}')
+            lines.append('A=D-A')
+            lines.append('D=M')
+            lines.append(f'@{reg}')
+            lines.append('M=D')
+            return lines
+
+        lines = []
+        # FRAME = LCL; use R5 for FRAME, R6 for RET
+        lines.append('@LCL')
+        lines.append('D=M')
+        lines.append('@R14')
+        lines.append('M=D')
+        # RET = *(FRAME-5)
+        lines = set_reg_to_frame_less_n(5, 'R15', lines)
+        # *ARG = pop()
+        lines.append('@SP')
+        lines.append('A=M-1')
+        lines.append('D=M')
+        lines.append('@ARG')
+        lines.append('A=M')
+        lines.append('M=D')
+        # SP = ARG + 1
+        lines.append('@ARG')
+        lines.append('D=M')
+        lines.append('@SP')
+        lines.append('M=D+1')
+        # THAT = *(FRAME-1)
+        lines = set_reg_to_frame_less_n(1, 'THAT', lines)
+        # THIS = *(FRAME-2)
+        lines = set_reg_to_frame_less_n(2, 'THIS', lines)
+        # ARG = *(FRAME-3)
+        lines = set_reg_to_frame_less_n(3, 'ARG', lines)
+        # LCL = *(FRAME-4)
+        lines = set_reg_to_frame_less_n(4, 'LCL', lines)
+        # goto RET
+        lines.append('@R6')
+        lines.append('A=M')
+        lines.append('0;JMP')
         self.outfile.write('\n'.join(lines) + '\n')
 
 class Parser(object):
@@ -314,7 +369,7 @@ def main(infiles):
     print(f'Translating the following files: ', *infiles, sep='\n\t')
     outfile = infiles[0].replace('.vm', '.asm')
     code_writer = CodeWriter(outfile)
-    code_write.write_init()
+    # code_writer.write_init()
     for i, infile in enumerate(infiles):
         parser = Parser(infile)
         code_writer.set_file_name(infile)
@@ -332,8 +387,12 @@ def main(infiles):
                 code_writer.write_goto(parser.current_command)
             elif parser.command_type() == 'C_IF':
                 code_writer.write_if_goto(parser.current_command)
-            elif parser.command_tyep() == 'C_CALL':
+            elif parser.command_type() == 'C_CALL':
                 code_writer.write_call(parser.current_command, command_ix)
+            elif parser.command_type() == 'C_FUNCTION':
+                code_writer.write_function(parser.current_command)
+            elif parser.command_type() == 'C_RETURN':
+                code_writer.write_return()
     code_writer.close()
 
 if __name__ == '__main__':
