@@ -246,7 +246,7 @@ class CodeWriter(object):
             return lines
 
         lines = []
-        # FRAME = LCL; use R5 for FRAME, R6 for RET
+        # FRAME = LCL; use R14 for FRAME, R15 for RET
         lines.append('@LCL')
         lines.append('D=M')
         lines.append('@R14')
@@ -274,7 +274,7 @@ class CodeWriter(object):
         # LCL = *(FRAME-4)
         lines = set_reg_to_frame_less_n(4, 'LCL', lines)
         # goto RET
-        lines.append('@R6')
+        lines.append('@R15')
         lines.append('A=M')
         lines.append('0;JMP')
         self.outfile.write('\n'.join(lines) + '\n')
