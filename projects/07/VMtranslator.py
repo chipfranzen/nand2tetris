@@ -66,7 +66,7 @@ class CodeWriter(object):
                     lines.append('D;JGT')
                 elif cmd == 'gt':
                     lines.append('D;JLT')
-                lines.append('@SP') 
+                lines.append('@SP')
                 lines.append('A=M')
                 lines.append('M=0') # return False if jump fails
                 lines.append(f'@CONTINUE_{cmd_number}')
@@ -79,6 +79,59 @@ class CodeWriter(object):
                 lines.append(f'(CONTINUE_{cmd_number})')
         lines.append('@SP')
         lines.append('M=M+1') # move stack pointer to empty cell
+        self.outfile.write('\n'.join(lines) + '\n')
+
+    def write_call(self, cmd, cmd_number):
+        _, f, n = cmd.split(' ')
+
+        def push_address(lines):
+            lines.append('@SP')
+            lines.append('A=M')
+            lines.append('M=D')
+            lines.append('@SP')
+            lines.append('M=M+1')
+            return lines
+
+        lines = []
+        # push return-address
+        lines.append(f'@return_address_{cmd_number}')
+        lines.append('D=A')
+        lines = push_address(lines)
+        # push LCL
+        lines.append('@LCL')
+        lines.append('D=M')
+        lines = push_address(lines)
+        # push ARG
+        lines.append('@ARG')
+        lines.append('D=M')
+        lines = push_address(lines)
+        # push THIS
+        lines.append('@THIS')
+        lines.append('D=M')
+        lines = push_address(lines)
+        # push THAT
+        lines.append('@THAT')
+        lines.append('D=M')
+        lines = push_address(lines)
+        # ARG = SP - n - 5
+        lines.append('@SP')
+        lines.append('D=M')
+        lines.append(f'@{n}')
+        lines.append('D=D-A')
+        lines.append('@5')
+        lines.append('D=D-A')
+        lines.append('@ARG')
+        lines.append('M=D')
+        # LCL = SP
+        lines.append('@SP')
+        lines.append('D=M')
+        lines.append('@LCL')
+        lines.append('M=D')
+        # goto f
+        lines.append(f'@{f}')
+        lines.append('0;JMP')
+        # (return-address)
+        lines.append(f'(return_address_{cmd_number}')
         self.outfile.write('\n'.join(lines) + '\n')
 
     def write_init(self):
@@ -109,6 +162,13 @@ class CodeWriter(object):
         lines.append(f'@{label}')
         lines.append('D;JNE')
         self.outfile.write('\n'.join(lines) + '\n')
+
+    def write_init():
+        lines = []
+        lines.append('@SP')
+        lines.append('M=256')
+        # TODO: init other segment bases
+        # TODO: call Sys.init
 
     def write_label(self, cmd, cmd_ix):
         lines = []
@@ -254,6 +314,7 @@ def main(infiles):
     print(f'Translating the following files: ', *infiles, sep='\n\t')
     outfile = infiles[0].replace('.vm', '.asm')
     code_writer = CodeWriter(outfile)
+    code_write.write_init()
     for i, infile in enumerate(infiles):
         parser = Parser(infile)
         code_writer.set_file_name(infile)
@@ -271,6 +332,8 @@ def main(infiles):
                 code_writer.write_goto(parser.current_command)
             elif parser.command_type() == 'C_IF':
                 code_writer.write_if_goto(parser.current_command)
+            elif parser.command_tyep() == 'C_CALL':
+                code_writer.write_call(parser.current_command, command_ix)
     code_writer.close()
 
 if __name__ == '__main__':
