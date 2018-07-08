@@ -3,7 +3,6 @@ import argparse
 from glob import glob
 import os
 import re
-import pudb
 
 VALID_ARITHMETIC = ['add', 'sub', 'neg', 'eq', 'gt', 'lt', 'and', 'or', 'not']
 UNARY_OPS = ['not', 'neg']
