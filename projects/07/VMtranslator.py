@@ -3,6 +3,7 @@ import argparse
 from glob import glob
 import os
 import re
+import pudb
 
 VALID_ARITHMETIC = ['add', 'sub', 'neg', 'eq', 'gt', 'lt', 'and', 'or', 'not']
 UNARY_OPS = ['not', 'neg']
@@ -131,7 +132,7 @@ class CodeWriter(object):
         lines.append(f'@{f}')
         lines.append('0;JMP')
         # (return-address)
-        lines.append(f'(return_address_{cmd_number}')
+        lines.append(f'(return_address_{cmd_number})')
         self.outfile.write('\n'.join(lines) + '\n')
 
     def write_function(self, cmd):
@@ -177,7 +178,7 @@ class CodeWriter(object):
         lines.append('@SP')
         lines.append('M=D')
         self.outfile.write('\n'.join(lines) + '\n')
-        # TODO: call sys.init
+        self.write_call('call Sys.init 0', 0)
 
     def write_label(self, cmd, cmd_ix):
         lines = []
@@ -364,12 +365,23 @@ def check_infiles(infiles):
         infiles = glob(os.path.join(infiles[0], '*.vm'))
     return infiles
 
+def get_outfile_name(infiles):
+    if not infiles[0].endswith('.vm'):
+        assert os.path.isdir(infiles[0]), 'Infiles must be a directory or a list of .vm files.'
+        outfile_name = infiles[0].strip('/').split('/')[-1] + '.asm'
+        outfile_path = os.path.join(infiles[0], outfile_name)
+    else:
+        outfile_path = infiles[0].replace('.vm', '.asm')
+    return outfile_path
+
+
 def main(infiles):
+    outfile = get_outfile_name(infiles)
     infiles = check_infiles(infiles)
     print(f'Translating the following files: ', *infiles, sep='\n\t')
-    outfile = infiles[0].replace('.vm', '.asm')
+    print(f'Writing to {outfile}')
     code_writer = CodeWriter(outfile)
-    # code_writer.write_init()
+    code_writer.write_init()
     for i, infile in enumerate(infiles):
         parser = Parser(infile)
         code_writer.set_file_name(infile)
